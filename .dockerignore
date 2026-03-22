@@ -1,0 +1,8 @@
+.git
+.github
+simulator/
+scripts/
+lambda/
+*.md
+__pycache__
+.pytest_cache
