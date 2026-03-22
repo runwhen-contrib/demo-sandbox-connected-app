@@ -35,15 +35,15 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
+        id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image
-        run: |
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          docker buildx build \
-            --platform linux/arm64 \
-            --tag $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            --tag $ECR_REGISTRY/$ECR_REPOSITORY:sha-$SHORT_SHA \
-            --push \
-            .
-          echo "Pushed $ECR_REGISTRY/$ECR_REPOSITORY:latest and :sha-$SHORT_SHA"
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:sha-${{ github.sha }}
