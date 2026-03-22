@@ -32,7 +32,7 @@ jobs:
       - name: Build, tag, and push image
         run: |
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -t $ECR_REGISTRY/$ECR_REPOSITORY:sha-$SHORT_SHA .
+          docker build --platform linux/arm64 -t $ECR_REGISTRY/$ECR_REPOSITORY:latest -t $ECR_REGISTRY/$ECR_REPOSITORY:sha-$SHORT_SHA .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:sha-$SHORT_SHA
           echo "Pushed $ECR_REGISTRY/$ECR_REPOSITORY:latest and :sha-$SHORT_SHA"
