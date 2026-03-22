@@ -1,12 +1,14 @@
 name: Build and Push to ECR
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
       - 'src/**'
       - 'Dockerfile'
       - 'requirements.txt'
+      - '.github/workflows/**'
 
 env:
   AWS_REGION: us-west-2
