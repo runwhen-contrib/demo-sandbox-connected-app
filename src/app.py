@@ -15,11 +15,13 @@ import logging
 import os
 from datetime import datetime, timezone
 
+from pathlib import Path
+
 import boto3
 import httpx
 from botocore.exceptions import ClientError
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 SERVICE_NAME = os.environ.get("SERVICE_NAME", "unknown")
 AWS_REGION = os.environ.get("AWS_REGION", "us-west-2")
@@ -27,7 +29,10 @@ S3_BUCKET = os.environ.get("S3_BUCKET", "sandbox-eks-data-west")
 LAMBDA_FUNCTION = os.environ.get("LAMBDA_FUNCTION", "sandbox-eks-processor")
 UPSTREAM_TELEMETRY = os.environ.get("UPSTREAM_TELEMETRY", "http://telemetry-ingest.connected-vehicle.svc:80")
 UPSTREAM_TRIP = os.environ.get("UPSTREAM_TRIP", "http://trip-service.connected-vehicle.svc:80")
+UPSTREAM_VEHICLE_API = os.environ.get("UPSTREAM_VEHICLE_API", "http://vehicle-api.connected-vehicle.svc:80")
+UPSTREAM_NOTIFICATION = os.environ.get("UPSTREAM_NOTIFICATION", "http://notification-service.connected-vehicle.svc:80")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+STATIC_DIR = Path(__file__).parent / "static"
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),
@@ -64,6 +69,9 @@ def _validate_telemetry(data: dict) -> list[str]:
 
 @app.get("/")
 def root():
+    if SERVICE_NAME == "dashboard":
+        html = (STATIC_DIR / "dashboard.html").read_text()
+        return HTMLResponse(content=html)
     return {"service": SERVICE_NAME, "status": "running", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
@@ -284,3 +292,166 @@ def lambda_health():
     except ClientError as exc:
         logger.error("Lambda GetFunction FAILED — %s", exc)
         return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
+# ---------------------------------------------------------------------------
+# dashboard — proxies to other services so the browser only talks to one host
+# ---------------------------------------------------------------------------
+
+async def _proxy_get(upstream_url: str, path: str):
+    try:
+        resp = await http_client.get(f"{upstream_url}{path}", timeout=8.0)
+        return JSONResponse(status_code=resp.status_code, content=resp.json())
+    except Exception as exc:
+        logger.error("Dashboard proxy error: %s%s — %s", upstream_url, path, exc)
+        return JSONResponse(status_code=502, content={"error": str(exc)})
+
+
+@app.get("/dash/health")
+async def dash_health():
+    if SERVICE_NAME != "dashboard":
+        raise HTTPException(404)
+    return await _proxy_get(UPSTREAM_VEHICLE_API, "/api/v1/health")
+
+
+@app.get("/dash/status")
+async def dash_status():
+    if SERVICE_NAME != "dashboard":
+        raise HTTPException(404)
+    return await _proxy_get(UPSTREAM_VEHICLE_API, "/api/v1/status")
+
+
+@app.get("/dash/telemetry")
+async def dash_telemetry():
+    if SERVICE_NAME != "dashboard":
+        raise HTTPException(404)
+    return await _proxy_get(UPSTREAM_NOTIFICATION, "/notifications")
+
+
+@app.get("/dash/anomalies")
+async def dash_anomalies():
+    if SERVICE_NAME != "dashboard":
+        raise HTTPException(404)
+    return await _proxy_get(UPSTREAM_NOTIFICATION, "/anomalies")
+
+
+@app.get("/dash/lambda")
+async def dash_lambda():
+    if SERVICE_NAME != "dashboard":
+        raise HTTPException(404)
+    return await _proxy_get(UPSTREAM_NOTIFICATION, "/lambda-status")
+
+
+# ---------------------------------------------------------------------------
+# dashboard — embedded simulator (start/stop from the UI)
+# ---------------------------------------------------------------------------
+
+import random
+
+VINS = [
+    "1HGBH41JXMN109186", "2T1BURHE5JC123456", "3FADP4BJ7EM234567",
+    "5YFBURHE9JP345678", "1N4AL3AP8JC456789", "JM1BK32F781567890",
+    "WDBRF61J21F678901", "1FTFW1EF5EFC78901", "2HGFB2F59CH890123",
+    "3VW2K7AJ9CM901234",
+]
+CITIES = [
+    (47.6062, -122.3321), (45.5155, -122.6789), (37.7749, -122.4194),
+    (34.0522, -118.2437), (39.7392, -104.9903), (33.4484, -112.0740),
+    (30.2672, -97.7431), (41.8781, -87.6298), (40.7128, -74.0060),
+    (25.7617, -80.1918),
+]
+
+_sim_task: asyncio.Task | None = None
+_sim_stats = {"running": False, "sent": 0, "errors": 0, "anomalies_injected": 0}
+
+
+def _gen_telemetry(vin: str, idx: int, inject: bool) -> dict:
+    lat, lon = CITIES[idx % len(CITIES)]
+    speed = random.uniform(25, 75)
+    temp = random.uniform(180, 210)
+    fuel = random.uniform(30, 90)
+    batt = random.uniform(12.8, 14.2)
+    tp = {k: round(random.uniform(31, 35), 1) for k in ("fl", "fr", "rl", "rr")}
+    if inject:
+        pick = random.choice(["speed", "temp", "fuel", "batt", "tire"])
+        if pick == "speed":   speed = random.uniform(105, 140)
+        elif pick == "temp":  temp = random.uniform(245, 280)
+        elif pick == "fuel":  fuel = random.uniform(2, 9)
+        elif pick == "batt":  batt = random.uniform(9.5, 11.4)
+        elif pick == "tire":  tp[random.choice(list(tp))] = random.uniform(15, 24)
+    return {
+        "vin": vin,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "location": {"lat": round(lat + random.uniform(-0.05, 0.05), 6),
+                      "lon": round(lon + random.uniform(-0.05, 0.05), 6)},
+        "speed_mph": round(speed, 1),
+        "engine_temp_f": round(temp, 1),
+        "fuel_pct": round(fuel, 1),
+        "battery_v": round(batt, 2),
+        "odometer_mi": random.randint(5000, 120000),
+        "tire_pressure_psi": tp,
+    }
+
+
+async def _sim_loop(fleet_size: int, interval: float, anomaly_rate: float):
+    endpoint = f"{UPSTREAM_VEHICLE_API}/api/v1/telemetry"
+    fleet = VINS[:fleet_size]
+    logger.info("Simulator started — %d vehicles, interval=%.1fs, anomaly_rate=%.0f%%",
+                fleet_size, interval, anomaly_rate * 100)
+    while True:
+        for i, vin in enumerate(fleet):
+            inject = random.random() < anomaly_rate
+            payload = _gen_telemetry(vin, i, inject)
+            try:
+                resp = await http_client.post(endpoint, json=payload, timeout=15.0)
+                if resp.status_code < 300:
+                    _sim_stats["sent"] += 1
+                else:
+                    _sim_stats["errors"] += 1
+            except Exception:
+                _sim_stats["errors"] += 1
+            if inject:
+                _sim_stats["anomalies_injected"] += 1
+        await asyncio.sleep(interval)
+
+
+@app.post("/dash/simulator/start")
+async def sim_start(request: Request):
+    if SERVICE_NAME != "dashboard":
+        raise HTTPException(404)
+    global _sim_task
+    if _sim_task and not _sim_task.done():
+        return {"status": "already_running", **_sim_stats}
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    fleet = min(int(body.get("fleet", 10)), len(VINS))
+    interval = max(float(body.get("interval", 3)), 0.5)
+    anomaly_rate = float(body.get("anomaly_rate", 0.05))
+    _sim_stats.update({"running": True, "sent": 0, "errors": 0, "anomalies_injected": 0})
+    _sim_task = asyncio.create_task(_sim_loop(fleet, interval, anomaly_rate))
+    return {"status": "started", "fleet": fleet, "interval": interval, "anomaly_rate": anomaly_rate}
+
+
+@app.post("/dash/simulator/stop")
+async def sim_stop():
+    if SERVICE_NAME != "dashboard":
+        raise HTTPException(404)
+    global _sim_task
+    if _sim_task and not _sim_task.done():
+        _sim_task.cancel()
+        _sim_task = None
+        _sim_stats["running"] = False
+        return {"status": "stopped", **_sim_stats}
+    return {"status": "not_running"}
+
+
+@app.get("/dash/simulator/status")
+async def sim_status():
+    if SERVICE_NAME != "dashboard":
+        raise HTTPException(404)
+    running = _sim_task is not None and not _sim_task.done()
+    _sim_stats["running"] = running
+    return _sim_stats
