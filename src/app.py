@@ -363,6 +363,11 @@ CITIES = [
 
 _sim_task: asyncio.Task | None = None
 _sim_stats = {"running": False, "sent": 0, "errors": 0, "anomalies_injected": 0}
+_ambient_task: asyncio.Task | None = None
+_ambient_stats = {"sent": 0, "errors": 0}
+AMBIENT_FLEET = 2
+AMBIENT_INTERVAL = 10.0
+AMBIENT_ANOMALY_RATE = 0.02
 
 
 def _gen_telemetry(vin: str, idx: int, inject: bool) -> dict:
@@ -413,6 +418,33 @@ async def _sim_loop(fleet_size: int, interval: float, anomaly_rate: float):
             if inject:
                 _sim_stats["anomalies_injected"] += 1
         await asyncio.sleep(interval)
+
+
+async def _ambient_loop():
+    """Always-on background trickle so the dashboard never looks empty."""
+    endpoint = f"{UPSTREAM_VEHICLE_API}/api/v1/telemetry"
+    fleet = VINS[:AMBIENT_FLEET]
+    logger.info("Ambient trickle started — %d vehicles every %.0fs", AMBIENT_FLEET, AMBIENT_INTERVAL)
+    while True:
+        for i, vin in enumerate(fleet):
+            inject = random.random() < AMBIENT_ANOMALY_RATE
+            payload = _gen_telemetry(vin, i, inject)
+            try:
+                resp = await http_client.post(endpoint, json=payload, timeout=15.0)
+                if resp.status_code < 300:
+                    _ambient_stats["sent"] += 1
+                else:
+                    _ambient_stats["errors"] += 1
+            except Exception:
+                _ambient_stats["errors"] += 1
+        await asyncio.sleep(AMBIENT_INTERVAL)
+
+
+@app.on_event("startup")
+async def _start_ambient():
+    global _ambient_task
+    if SERVICE_NAME == "dashboard":
+        _ambient_task = asyncio.create_task(_ambient_loop())
 
 
 @app.post("/dash/simulator/start")

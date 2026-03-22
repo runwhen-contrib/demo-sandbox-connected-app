@@ -1,128 +1,145 @@
 <!DOCTYPE html>
-<html lang="en" class="bg-gray-950">
+<html lang="en" class="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Connected Vehicle — Mission Control</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { darkMode: 'class' }
+</script>
 <style>
   @keyframes pulse-green { 0%,100%{opacity:.4} 50%{opacity:1} }
   @keyframes pulse-red   { 0%,100%{opacity:.3} 50%{opacity:1} }
   @keyframes flow { 0%{stroke-dashoffset:20} 100%{stroke-dashoffset:0} }
   .edge-ok   { stroke:#22c55e; stroke-dasharray:6 4; animation:flow .8s linear infinite; }
   .edge-err  { stroke:#ef4444; stroke-dasharray:6 4; animation:flow .8s linear infinite; }
-  .edge-idle { stroke:#475569; stroke-dasharray:6 4; }
-  .node-ok   { fill:#064e3b; stroke:#22c55e; }
-  .node-err  { fill:#450a0a; stroke:#ef4444; animation:pulse-red 1.2s ease-in-out infinite; }
-  .node-idle { fill:#1e293b; stroke:#475569; }
+  .edge-idle-dark { stroke:#475569; stroke-dasharray:6 4; }
+  .edge-idle-light { stroke:#cbd5e1; stroke-dasharray:6 4; }
+  .node-ok-dark  { fill:#064e3b; stroke:#22c55e; }
+  .node-ok-light { fill:#dcfce7; stroke:#16a34a; }
+  .node-err-dark { fill:#450a0a; stroke:#ef4444; animation:pulse-red 1.2s ease-in-out infinite; }
+  .node-err-light { fill:#fef2f2; stroke:#dc2626; animation:pulse-red 1.2s ease-in-out infinite; }
+  .node-idle-dark  { fill:#1e293b; stroke:#475569; }
+  .node-idle-light { fill:#f1f5f9; stroke:#cbd5e1; }
   .dot-ok    { background:#22c55e; box-shadow:0 0 8px #22c55e88; }
   .dot-err   { background:#ef4444; box-shadow:0 0 8px #ef444488; animation:pulse-red 1s ease-in-out infinite; }
-  .dot-unknown { background:#64748b; }
+  .dot-unknown { background:#94a3b8; }
   .feed-row  { animation: fadeSlideIn .3s ease-out; }
   @keyframes fadeSlideIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
   #event-feed::-webkit-scrollbar { width:4px; }
-  #event-feed::-webkit-scrollbar-thumb { background:#334155; border-radius:2px; }
+  .dark #event-feed::-webkit-scrollbar-thumb { background:#334155; border-radius:2px; }
+  #event-feed::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:2px; }
 </style>
 </head>
-<body class="bg-gray-950 text-gray-100 min-h-screen font-mono">
+<body class="dark:bg-gray-950 bg-gray-50 dark:text-gray-100 text-gray-900 min-h-screen font-mono transition-colors duration-200">
 
 <!-- Header -->
-<header class="border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+<header class="border-b dark:border-gray-800 border-gray-200 px-6 py-3 flex items-center justify-between">
   <div class="flex items-center gap-3">
     <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse" id="live-dot"></div>
-    <h1 class="text-lg font-semibold tracking-wide text-gray-200">CONNECTED VEHICLE TELEMETRY PIPELINE</h1>
+    <h1 class="text-lg font-semibold tracking-wide dark:text-gray-200 text-gray-800">CONNECTED VEHICLE TELEMETRY PIPELINE</h1>
   </div>
-  <div class="flex items-center gap-4 text-sm text-gray-500">
+  <div class="flex items-center gap-4 text-sm dark:text-gray-500 text-gray-400">
     <button id="sim-btn" onclick="toggleSimulator()"
       class="px-3 py-1 rounded text-xs font-semibold border transition-colors
-             bg-gray-800 border-gray-700 text-gray-400 hover:border-green-600 hover:text-green-400">
+             dark:bg-gray-800 bg-white dark:border-gray-700 border-gray-300 dark:text-gray-400 text-gray-500 hover:border-green-600 hover:text-green-600 dark:hover:text-green-400">
       Start Simulator
     </button>
-    <span id="sim-counter" class="text-gray-600 text-xs hidden">
+    <span id="sim-counter" class="dark:text-gray-600 text-gray-400 text-xs hidden">
       sent: <span id="sim-sent">0</span>
     </span>
-    <span id="header-status" class="text-green-400 font-medium">LIVE</span>
+    <span id="header-status" class="text-green-500 dark:text-green-400 font-medium">LIVE</span>
     <span id="header-clock"></span>
+    <!-- Theme toggle -->
+    <button onclick="toggleTheme()" id="theme-btn"
+      class="p-1.5 rounded-md dark:bg-gray-800 bg-gray-200 dark:hover:bg-gray-700 hover:bg-gray-300 transition-colors"
+      title="Toggle light/dark mode">
+      <svg id="icon-sun" class="w-4 h-4 hidden dark:block dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m8.66-13.66l-.71.71M4.05 19.95l-.71.71M21 12h-1M4 12H3m16.66 7.66l-.71-.71M4.05 4.05l-.71-.71M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+      </svg>
+      <svg id="icon-moon" class="w-4 h-4 block dark:hidden text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+      </svg>
+    </button>
   </div>
 </header>
 
 <!-- Metrics Bar -->
 <section class="grid grid-cols-2 md:grid-cols-4 gap-3 px-6 py-4">
-  <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
-    <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Telemetry Stored</div>
-    <div class="text-2xl font-bold text-cyan-400" id="m-telemetry">--</div>
-    <div class="text-xs text-gray-600 mt-1">today in S3</div>
+  <div class="dark:bg-gray-900 bg-white dark:border-gray-800 border-gray-200 border rounded-lg p-4 shadow-sm">
+    <div class="text-xs dark:text-gray-500 text-gray-400 uppercase tracking-wider mb-1">Telemetry Stored</div>
+    <div class="text-2xl font-bold text-cyan-500 dark:text-cyan-400" id="m-telemetry">--</div>
+    <div class="text-xs dark:text-gray-600 text-gray-400 mt-1">today in S3</div>
   </div>
-  <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
-    <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Anomalies</div>
-    <div class="text-2xl font-bold text-amber-400" id="m-anomalies">--</div>
-    <div class="text-xs text-gray-600 mt-1">detected today</div>
+  <div class="dark:bg-gray-900 bg-white dark:border-gray-800 border-gray-200 border rounded-lg p-4 shadow-sm">
+    <div class="text-xs dark:text-gray-500 text-gray-400 uppercase tracking-wider mb-1">Anomalies</div>
+    <div class="text-2xl font-bold text-amber-500 dark:text-amber-400" id="m-anomalies">--</div>
+    <div class="text-xs dark:text-gray-600 text-gray-400 mt-1">detected today</div>
   </div>
-  <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
-    <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Lambda State</div>
-    <div class="text-2xl font-bold text-green-400" id="m-lambda">--</div>
-    <div class="text-xs text-gray-600 mt-1">processor function</div>
+  <div class="dark:bg-gray-900 bg-white dark:border-gray-800 border-gray-200 border rounded-lg p-4 shadow-sm">
+    <div class="text-xs dark:text-gray-500 text-gray-400 uppercase tracking-wider mb-1">Lambda State</div>
+    <div class="text-2xl font-bold text-green-500 dark:text-green-400" id="m-lambda">--</div>
+    <div class="text-xs dark:text-gray-600 text-gray-400 mt-1">processor function</div>
   </div>
-  <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
-    <div class="text-xs text-gray-500 uppercase tracking-wider mb-1">Pipeline</div>
-    <div class="text-2xl font-bold text-green-400" id="m-pipeline">--</div>
-    <div class="text-xs text-gray-600 mt-1">overall health</div>
+  <div class="dark:bg-gray-900 bg-white dark:border-gray-800 border-gray-200 border rounded-lg p-4 shadow-sm">
+    <div class="text-xs dark:text-gray-500 text-gray-400 uppercase tracking-wider mb-1">Pipeline</div>
+    <div class="text-2xl font-bold text-green-500 dark:text-green-400" id="m-pipeline">--</div>
+    <div class="text-xs dark:text-gray-600 text-gray-400 mt-1">overall health</div>
   </div>
 </section>
 
 <!-- Architecture Diagram -->
 <section class="px-6 pb-2">
-  <div class="bg-gray-900 border border-gray-800 rounded-lg p-4 overflow-x-auto">
+  <div class="dark:bg-gray-900 bg-white dark:border-gray-800 border-gray-200 border rounded-lg p-4 overflow-x-auto shadow-sm">
     <svg viewBox="0 0 940 220" class="w-full max-w-5xl mx-auto" style="min-width:700px">
-      <!-- Edges (drawn first, behind nodes) -->
-      <line id="e-sim-apigw"      x1="85"  y1="110" x2="175" y2="110" class="edge-idle" stroke-width="2"/>
-      <line id="e-apigw-vapi"     x1="275" y1="110" x2="375" y2="110" class="edge-idle" stroke-width="2"/>
-      <line id="e-vapi-ingest"    x1="475" y1="90"  x2="575" y2="50"  class="edge-idle" stroke-width="2"/>
-      <line id="e-vapi-trip"      x1="475" y1="130" x2="575" y2="170" class="edge-idle" stroke-width="2"/>
-      <line id="e-ingest-s3"      x1="675" y1="50"  x2="765" y2="50"  class="edge-idle" stroke-width="2"/>
-      <line id="e-trip-lambda"    x1="675" y1="170" x2="765" y2="170" class="edge-idle" stroke-width="2"/>
-      <line id="e-lambda-s3"      x1="830" y1="155" x2="830" y2="70"  class="edge-idle" stroke-width="2"/>
-      <line id="e-lambda-eb"      x1="865" y1="170" x2="920" y2="170" class="edge-idle" stroke-width="1.5"/>
+      <line id="e-sim-apigw"      x1="85"  y1="110" x2="175" y2="110" class="edge-idle-dark" stroke-width="2"/>
+      <line id="e-apigw-vapi"     x1="275" y1="110" x2="375" y2="110" class="edge-idle-dark" stroke-width="2"/>
+      <line id="e-vapi-ingest"    x1="475" y1="90"  x2="575" y2="50"  class="edge-idle-dark" stroke-width="2"/>
+      <line id="e-vapi-trip"      x1="475" y1="130" x2="575" y2="170" class="edge-idle-dark" stroke-width="2"/>
+      <line id="e-ingest-s3"      x1="675" y1="50"  x2="765" y2="50"  class="edge-idle-dark" stroke-width="2"/>
+      <line id="e-trip-lambda"    x1="675" y1="170" x2="765" y2="170" class="edge-idle-dark" stroke-width="2"/>
+      <line id="e-lambda-s3"      x1="830" y1="155" x2="830" y2="70"  class="edge-idle-dark" stroke-width="2"/>
+      <line id="e-lambda-eb"      x1="865" y1="170" x2="920" y2="170" class="edge-idle-dark" stroke-width="1.5"/>
 
-      <!-- Nodes -->
       <g id="n-simulator">
-        <rect x="10" y="85" width="75" height="50" rx="6" class="node-idle" stroke-width="1.5"/>
-        <text x="47" y="107" text-anchor="middle" class="fill-gray-300 text-[10px]">Simulator</text>
-        <text x="47" y="122" text-anchor="middle" class="fill-gray-500 text-[8px]">external</text>
+        <rect x="10" y="85" width="75" height="50" rx="6" class="node-idle-dark" stroke-width="1.5"/>
+        <text x="47" y="107" text-anchor="middle" class="svg-label text-[10px]" fill="#94a3b8">Simulator</text>
+        <text x="47" y="122" text-anchor="middle" class="svg-sub text-[8px]" fill="#64748b">external</text>
       </g>
       <g id="n-apigw">
-        <rect x="175" y="85" width="100" height="50" rx="6" class="node-idle" stroke-width="1.5"/>
-        <text x="225" y="107" text-anchor="middle" class="fill-gray-300 text-[10px]">API Gateway</text>
-        <text x="225" y="122" text-anchor="middle" class="fill-gray-500 text-[8px]">TLS + VPC Link</text>
+        <rect x="175" y="85" width="100" height="50" rx="6" class="node-idle-dark" stroke-width="1.5"/>
+        <text x="225" y="107" text-anchor="middle" class="svg-label text-[10px]" fill="#94a3b8">API Gateway</text>
+        <text x="225" y="122" text-anchor="middle" class="svg-sub text-[8px]" fill="#64748b">TLS + VPC Link</text>
       </g>
       <g id="n-vehicle-api">
-        <rect x="375" y="85" width="100" height="50" rx="6" class="node-idle" stroke-width="1.5"/>
-        <text x="425" y="107" text-anchor="middle" class="fill-gray-300 text-[10px]">vehicle-api</text>
-        <text x="425" y="122" text-anchor="middle" class="fill-gray-500 text-[8px]">EKS</text>
+        <rect x="375" y="85" width="100" height="50" rx="6" class="node-idle-dark" stroke-width="1.5"/>
+        <text x="425" y="107" text-anchor="middle" class="svg-label text-[10px]" fill="#94a3b8">vehicle-api</text>
+        <text x="425" y="122" text-anchor="middle" class="svg-sub text-[8px]" fill="#64748b">EKS</text>
       </g>
       <g id="n-telemetry-ingest">
-        <rect x="575" y="25" width="100" height="50" rx="6" class="node-idle" stroke-width="1.5"/>
-        <text x="625" y="47" text-anchor="middle" class="fill-gray-300 text-[10px]">telemetry-ingest</text>
-        <text x="625" y="62" text-anchor="middle" class="fill-gray-500 text-[8px]">EKS &rarr; S3</text>
+        <rect x="575" y="25" width="100" height="50" rx="6" class="node-idle-dark" stroke-width="1.5"/>
+        <text x="625" y="47" text-anchor="middle" class="svg-label text-[10px]" fill="#94a3b8">telemetry-ingest</text>
+        <text x="625" y="62" text-anchor="middle" class="svg-sub text-[8px]" fill="#64748b">EKS &#8594; S3</text>
       </g>
       <g id="n-trip-service">
-        <rect x="575" y="145" width="100" height="50" rx="6" class="node-idle" stroke-width="1.5"/>
-        <text x="625" y="167" text-anchor="middle" class="fill-gray-300 text-[10px]">trip-service</text>
-        <text x="625" y="182" text-anchor="middle" class="fill-gray-500 text-[8px]">EKS &rarr; Lambda</text>
+        <rect x="575" y="145" width="100" height="50" rx="6" class="node-idle-dark" stroke-width="1.5"/>
+        <text x="625" y="167" text-anchor="middle" class="svg-label text-[10px]" fill="#94a3b8">trip-service</text>
+        <text x="625" y="182" text-anchor="middle" class="svg-sub text-[8px]" fill="#64748b">EKS &#8594; Lambda</text>
       </g>
       <g id="n-s3">
-        <rect x="765" y="25" width="80" height="50" rx="6" class="node-idle" stroke-width="1.5"/>
-        <text x="805" y="47" text-anchor="middle" class="fill-gray-300 text-[10px]">S3 Bucket</text>
-        <text x="805" y="62" text-anchor="middle" class="fill-gray-500 text-[8px]">data-west</text>
+        <rect x="765" y="25" width="80" height="50" rx="6" class="node-idle-dark" stroke-width="1.5"/>
+        <text x="805" y="47" text-anchor="middle" class="svg-label text-[10px]" fill="#94a3b8">S3 Bucket</text>
+        <text x="805" y="62" text-anchor="middle" class="svg-sub text-[8px]" fill="#64748b">data-west</text>
       </g>
       <g id="n-lambda">
-        <rect x="765" y="145" width="80" height="50" rx="6" class="node-idle" stroke-width="1.5"/>
-        <text x="805" y="167" text-anchor="middle" class="fill-gray-300 text-[10px]">Lambda</text>
-        <text x="805" y="182" text-anchor="middle" class="fill-gray-500 text-[8px]">processor</text>
+        <rect x="765" y="145" width="80" height="50" rx="6" class="node-idle-dark" stroke-width="1.5"/>
+        <text x="805" y="167" text-anchor="middle" class="svg-label text-[10px]" fill="#94a3b8">Lambda</text>
+        <text x="805" y="182" text-anchor="middle" class="svg-sub text-[8px]" fill="#64748b">processor</text>
       </g>
       <g id="n-eventbridge">
-        <rect x="870" y="155" width="65" height="35" rx="6" class="node-idle" stroke-width="1.5"/>
-        <text x="902" y="176" text-anchor="middle" class="fill-gray-500 text-[8px]">EventBridge</text>
+        <rect x="870" y="155" width="65" height="35" rx="6" class="node-idle-dark" stroke-width="1.5"/>
+        <text x="902" y="176" text-anchor="middle" class="svg-sub text-[8px]" fill="#64748b">EventBridge</text>
       </g>
     </svg>
   </div>
@@ -130,50 +147,47 @@
 
 <!-- Error Banner -->
 <div id="error-banner" class="mx-6 mb-2 hidden">
-  <div class="bg-red-950 border border-red-800 rounded-lg px-4 py-2 flex items-center gap-3">
+  <div class="dark:bg-red-950 bg-red-50 dark:border-red-800 border-red-300 border rounded-lg px-4 py-2 flex items-center gap-3">
     <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-    <span class="text-red-300 text-sm font-medium" id="error-banner-text"></span>
+    <span class="dark:text-red-300 text-red-700 text-sm font-medium" id="error-banner-text"></span>
   </div>
 </div>
 
 <!-- Bottom panels: Health + Event Feed -->
 <section class="grid grid-cols-1 md:grid-cols-3 gap-3 px-6 pb-6">
-
-  <!-- Service Health -->
-  <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
-    <h2 class="text-xs text-gray-500 uppercase tracking-wider mb-3">Service Health</h2>
+  <div class="dark:bg-gray-900 bg-white dark:border-gray-800 border-gray-200 border rounded-lg p-4 shadow-sm">
+    <h2 class="text-xs dark:text-gray-500 text-gray-400 uppercase tracking-wider mb-3">Service Health</h2>
     <div class="space-y-3" id="health-grid">
       <div class="flex items-center gap-3" data-svc="vehicle-api">
         <div class="w-2.5 h-2.5 rounded-full dot-unknown"></div>
-        <span class="text-sm text-gray-300">vehicle-api</span>
-        <span class="ml-auto text-xs text-gray-600" data-status>--</span>
+        <span class="text-sm dark:text-gray-300 text-gray-700">vehicle-api</span>
+        <span class="ml-auto text-xs dark:text-gray-600 text-gray-400" data-status>--</span>
       </div>
       <div class="flex items-center gap-3" data-svc="telemetry-ingest">
         <div class="w-2.5 h-2.5 rounded-full dot-unknown"></div>
-        <span class="text-sm text-gray-300">telemetry-ingest</span>
-        <span class="ml-auto text-xs text-gray-600" data-status>--</span>
+        <span class="text-sm dark:text-gray-300 text-gray-700">telemetry-ingest</span>
+        <span class="ml-auto text-xs dark:text-gray-600 text-gray-400" data-status>--</span>
       </div>
       <div class="flex items-center gap-3" data-svc="trip-service">
         <div class="w-2.5 h-2.5 rounded-full dot-unknown"></div>
-        <span class="text-sm text-gray-300">trip-service</span>
-        <span class="ml-auto text-xs text-gray-600" data-status>--</span>
+        <span class="text-sm dark:text-gray-300 text-gray-700">trip-service</span>
+        <span class="ml-auto text-xs dark:text-gray-600 text-gray-400" data-status>--</span>
       </div>
       <div class="flex items-center gap-3" data-svc="notification-service">
         <div class="w-2.5 h-2.5 rounded-full dot-unknown"></div>
-        <span class="text-sm text-gray-300">notification-service</span>
-        <span class="ml-auto text-xs text-gray-600" data-status>--</span>
+        <span class="text-sm dark:text-gray-300 text-gray-700">notification-service</span>
+        <span class="ml-auto text-xs dark:text-gray-600 text-gray-400" data-status>--</span>
       </div>
     </div>
   </div>
 
-  <!-- Live Event Feed -->
-  <div class="md:col-span-2 bg-gray-900 border border-gray-800 rounded-lg p-4 flex flex-col" style="max-height:280px">
-    <h2 class="text-xs text-gray-500 uppercase tracking-wider mb-3">Live Event Feed</h2>
+  <div class="md:col-span-2 dark:bg-gray-900 bg-white dark:border-gray-800 border-gray-200 border rounded-lg p-4 flex flex-col shadow-sm" style="max-height:280px">
+    <h2 class="text-xs dark:text-gray-500 text-gray-400 uppercase tracking-wider mb-3">Live Event Feed</h2>
     <div id="event-feed" class="flex-1 overflow-y-auto space-y-1 text-xs font-mono"></div>
   </div>
 </section>
 
-<footer class="text-center text-xs text-gray-700 pb-4">
+<footer class="text-center text-xs dark:text-gray-700 text-gray-400 pb-4">
   Connected Vehicle Demo &mdash; RunWhen Platform
 </footer>
 
@@ -182,10 +196,47 @@ const BASE = '';
 const POLL_MS = 3000;
 let prevTelemetryKeys = new Set();
 let prevAnomalyKeys = new Set();
+let isDark = true;
 
 function $(sel) { return document.querySelector(sel); }
 function $$(sel) { return document.querySelectorAll(sel); }
 const feed = $('#event-feed');
+
+function toggleTheme() {
+  isDark = !isDark;
+  document.documentElement.classList.toggle('dark', isDark);
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  updateSvgTheme();
+}
+
+(function initTheme() {
+  const saved = localStorage.getItem('theme');
+  if (saved === 'light') { isDark = false; document.documentElement.classList.remove('dark'); }
+})();
+
+function updateSvgTheme() {
+  const suffix = isDark ? 'dark' : 'light';
+  const other = isDark ? 'light' : 'dark';
+  const labelFill = isDark ? '#94a3b8' : '#374151';
+  const subFill = isDark ? '#64748b' : '#6b7280';
+
+  document.querySelectorAll('[class*="node-idle-"], [class*="node-ok-"], [class*="node-err-"]').forEach(el => {
+    el.classList.forEach(c => {
+      if (c.startsWith('node-') && (c.endsWith('-dark') || c.endsWith('-light'))) {
+        el.classList.replace(c, c.replace(`-${other}`, `-${suffix}`));
+      }
+    });
+  });
+  document.querySelectorAll('[class*="edge-idle-"]').forEach(el => {
+    el.classList.forEach(c => {
+      if (c.startsWith('edge-idle-')) {
+        el.classList.replace(c, `edge-idle-${suffix}`);
+      }
+    });
+  });
+  document.querySelectorAll('.svg-label').forEach(el => el.setAttribute('fill', labelFill));
+  document.querySelectorAll('.svg-sub').forEach(el => el.setAttribute('fill', subFill));
+}
 
 function ts() {
   return new Date().toLocaleTimeString('en-US', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
@@ -193,28 +244,33 @@ function ts() {
 
 function addFeedItem(text, type) {
   const row = document.createElement('div');
-  row.className = 'feed-row flex gap-2 py-0.5 border-b border-gray-800/50';
-  const timeSpan = `<span class="text-gray-600 shrink-0">${ts()}</span>`;
-  const colors = {ok:'text-green-400', anomaly:'text-amber-400', error:'text-red-400', info:'text-cyan-400'};
-  row.innerHTML = `${timeSpan}<span class="${colors[type]||'text-gray-400'}">${text}</span>`;
+  row.className = 'feed-row flex gap-2 py-0.5 border-b dark:border-gray-800/50 border-gray-200/50';
+  const timeSpan = `<span class="dark:text-gray-600 text-gray-400 shrink-0">${ts()}</span>`;
+  const colors = {ok:'text-green-500 dark:text-green-400', anomaly:'text-amber-500 dark:text-amber-400', error:'text-red-500 dark:text-red-400', info:'text-cyan-500 dark:text-cyan-400'};
+  row.innerHTML = `${timeSpan}<span class="${colors[type]||'dark:text-gray-400 text-gray-500'}">${text}</span>`;
   feed.prepend(row);
   while (feed.children.length > 100) feed.lastChild.remove();
 }
+
+function svgSuffix() { return isDark ? 'dark' : 'light'; }
 
 function setNodeClass(id, state) {
   const el = document.getElementById(id);
   if (!el) return;
   const rect = el.querySelector('rect');
   if (!rect) return;
-  rect.classList.remove('node-ok','node-err','node-idle');
-  rect.classList.add(state === 'ok' ? 'node-ok' : state === 'err' ? 'node-err' : 'node-idle');
+  const s = svgSuffix();
+  rect.className.baseVal = '';
+  rect.classList.add(state === 'ok' ? `node-ok-${s}` : state === 'err' ? `node-err-${s}` : `node-idle-${s}`);
 }
 
 function setEdgeClass(id, state) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.classList.remove('edge-ok','edge-err','edge-idle');
-  el.classList.add(state === 'ok' ? 'edge-ok' : state === 'err' ? 'edge-err' : 'edge-idle');
+  el.className.baseVal = '';
+  if (state === 'ok') el.classList.add('edge-ok');
+  else if (state === 'err') el.classList.add('edge-err');
+  else el.classList.add(`edge-idle-${svgSuffix()}`);
 }
 
 function setHealthDot(svc, ok) {
@@ -224,7 +280,7 @@ function setHealthDot(svc, ok) {
   const label = row.querySelector('[data-status]');
   dot.className = `w-2.5 h-2.5 rounded-full ${ok === true ? 'dot-ok' : ok === false ? 'dot-err' : 'dot-unknown'}`;
   label.textContent = ok === true ? 'OK' : ok === false ? 'DEGRADED' : '--';
-  label.className = `ml-auto text-xs ${ok === true ? 'text-green-500' : ok === false ? 'text-red-400' : 'text-gray-600'}`;
+  label.className = `ml-auto text-xs ${ok === true ? 'text-green-500' : ok === false ? 'text-red-500 dark:text-red-400' : 'dark:text-gray-600 text-gray-400'}`;
 }
 
 async function fetchJSON(path) {
@@ -243,14 +299,13 @@ async function pollHealth() {
     setHealthDot('vehicle-api', null);
     setNodeClass('n-vehicle-api', 'idle');
     $('#m-pipeline').textContent = 'OFFLINE';
-    $('#m-pipeline').className = 'text-2xl font-bold text-red-400';
+    $('#m-pipeline').className = 'text-2xl font-bold text-red-500 dark:text-red-400';
     $('#header-status').textContent = 'OFFLINE';
-    $('#header-status').className = 'text-red-400 font-medium';
+    $('#header-status').className = 'text-red-500 dark:text-red-400 font-medium';
     $('#live-dot').className = 'w-2 h-2 rounded-full bg-red-500 animate-pulse';
     return;
   }
 
-  const healthy = d.status === 'healthy';
   setHealthDot('vehicle-api', true);
   setNodeClass('n-vehicle-api', 'ok');
   setNodeClass('n-apigw', 'ok');
@@ -292,16 +347,16 @@ async function pollHealth() {
     banner.classList.remove('hidden');
     $('#error-banner-text').textContent = errors.join(' | ');
     $('#m-pipeline').textContent = 'DEGRADED';
-    $('#m-pipeline').className = 'text-2xl font-bold text-red-400';
+    $('#m-pipeline').className = 'text-2xl font-bold text-red-500 dark:text-red-400';
     $('#header-status').textContent = 'DEGRADED';
-    $('#header-status').className = 'text-red-400 font-medium';
+    $('#header-status').className = 'text-red-500 dark:text-red-400 font-medium';
     $('#live-dot').className = 'w-2 h-2 rounded-full bg-red-500 animate-pulse';
   } else {
     banner.classList.add('hidden');
     $('#m-pipeline').textContent = 'HEALTHY';
-    $('#m-pipeline').className = 'text-2xl font-bold text-green-400';
+    $('#m-pipeline').className = 'text-2xl font-bold text-green-500 dark:text-green-400';
     $('#header-status').textContent = 'LIVE';
-    $('#header-status').className = 'text-green-400 font-medium';
+    $('#header-status').className = 'text-green-500 dark:text-green-400 font-medium';
     $('#live-dot').className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
   }
 
@@ -333,9 +388,9 @@ async function pollAnomalies() {
   if (!d) { $('#m-anomalies').textContent = '--'; return; }
   $('#m-anomalies').textContent = (d.count || 0).toLocaleString();
   if (d.count > 0) {
-    $('#m-anomalies').className = 'text-2xl font-bold text-amber-400';
+    $('#m-anomalies').className = 'text-2xl font-bold text-amber-500 dark:text-amber-400';
   } else {
-    $('#m-anomalies').className = 'text-2xl font-bold text-green-400';
+    $('#m-anomalies').className = 'text-2xl font-bold text-green-500 dark:text-green-400';
   }
   for (const a of (d.anomalies || [])) {
     if (!prevAnomalyKeys.has(a.key)) {
@@ -351,7 +406,7 @@ async function pollLambda() {
   if (d && d.state) {
     const ok = d.state === 'Active';
     $('#m-lambda').textContent = d.state;
-    $('#m-lambda').className = `text-2xl font-bold ${ok ? 'text-green-400' : 'text-red-400'}`;
+    $('#m-lambda').className = `text-2xl font-bold ${ok ? 'text-green-500 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`;
   }
 }
 
@@ -374,14 +429,14 @@ async function toggleSimulator() {
       await fetch(BASE + '/dash/simulator/stop', {method:'POST'});
       simRunning = false;
       btn.textContent = 'Start Simulator';
-      btn.className = btn.className.replace('border-red-600 text-red-400 hover:border-red-500','border-gray-700 text-gray-400 hover:border-green-600 hover:text-green-400');
+      btn.className = 'px-3 py-1 rounded text-xs font-semibold border transition-colors dark:bg-gray-800 bg-white dark:border-gray-700 border-gray-300 dark:text-gray-400 text-gray-500 hover:border-green-600 hover:text-green-600 dark:hover:text-green-400';
       $('#sim-counter').classList.add('hidden');
       addFeedItem('Simulator stopped', 'info');
     } else {
       await fetch(BASE + '/dash/simulator/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({fleet:10, interval:3, anomaly_rate:0.05})});
       simRunning = true;
       btn.textContent = 'Stop Simulator';
-      btn.className = btn.className.replace('border-gray-700 text-gray-400 hover:border-green-600 hover:text-green-400','border-red-600 text-red-400 hover:border-red-500');
+      btn.className = 'px-3 py-1 rounded text-xs font-semibold border transition-colors dark:bg-gray-800 bg-white border-red-600 text-red-500 dark:text-red-400 hover:border-red-500';
       $('#sim-counter').classList.remove('hidden');
       addFeedItem('Simulator started \u2014 10 vehicles, 5% anomaly rate', 'info');
     }
@@ -398,17 +453,18 @@ async function pollSimStatus() {
   const btn = $('#sim-btn');
   if (d.running) {
     btn.textContent = 'Stop Simulator';
-    btn.className = btn.className.replace('border-gray-700 text-gray-400 hover:border-green-600 hover:text-green-400','border-red-600 text-red-400 hover:border-red-500');
+    btn.className = 'px-3 py-1 rounded text-xs font-semibold border transition-colors dark:bg-gray-800 bg-white border-red-600 text-red-500 dark:text-red-400 hover:border-red-500';
     $('#sim-counter').classList.remove('hidden');
     $('#sim-sent').textContent = (d.sent || 0).toLocaleString();
   } else {
     btn.textContent = 'Start Simulator';
-    btn.className = btn.className.replace('border-red-600 text-red-400 hover:border-red-500','border-gray-700 text-gray-400 hover:border-green-600 hover:text-green-400');
+    btn.className = 'px-3 py-1 rounded text-xs font-semibold border transition-colors dark:bg-gray-800 bg-white dark:border-gray-700 border-gray-300 dark:text-gray-400 text-gray-500 hover:border-green-600 hover:text-green-600 dark:hover:text-green-400';
   }
 }
 
 updateClock();
 setInterval(updateClock, 1000);
+updateSvgTheme();
 addFeedItem('Dashboard initialized, polling pipeline...', 'info');
 poll();
 pollSimStatus();
