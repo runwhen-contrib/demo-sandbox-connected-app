@@ -49,7 +49,7 @@ tailwind.config = { darkMode: 'class' }
     <span id="sim-counter" class="dark:text-gray-600 text-gray-400 text-xs hidden">
       sent: <span id="sim-sent">0</span>
     </span>
-    <span id="header-status" class="text-green-500 dark:text-green-400 font-medium">LIVE</span>
+    <span id="header-status" class="text-green-700 dark:text-green-400 font-medium">LIVE</span>
     <span id="header-clock"></span>
     <!-- Theme toggle -->
     <button onclick="toggleTheme()" id="theme-btn"
@@ -79,12 +79,12 @@ tailwind.config = { darkMode: 'class' }
   </div>
   <div class="dark:bg-gray-900 bg-white dark:border-gray-800 border-gray-200 border rounded-lg p-4 shadow-sm">
     <div class="text-xs dark:text-gray-500 text-gray-400 uppercase tracking-wider mb-1">Lambda State</div>
-    <div class="text-2xl font-bold text-green-500 dark:text-green-400" id="m-lambda">--</div>
+    <div class="text-2xl font-bold text-green-700 dark:text-green-400" id="m-lambda">--</div>
     <div class="text-xs dark:text-gray-600 text-gray-400 mt-1">processor function</div>
   </div>
   <div class="dark:bg-gray-900 bg-white dark:border-gray-800 border-gray-200 border rounded-lg p-4 shadow-sm">
     <div class="text-xs dark:text-gray-500 text-gray-400 uppercase tracking-wider mb-1">Pipeline</div>
-    <div class="text-2xl font-bold text-green-500 dark:text-green-400" id="m-pipeline">--</div>
+    <div class="text-2xl font-bold text-green-700 dark:text-green-400" id="m-pipeline">--</div>
     <div class="text-xs dark:text-gray-600 text-gray-400 mt-1">overall health</div>
   </div>
 </section>
@@ -246,7 +246,7 @@ function addFeedItem(text, type) {
   const row = document.createElement('div');
   row.className = 'feed-row flex gap-2 py-0.5 border-b dark:border-gray-800/50 border-gray-200/50';
   const timeSpan = `<span class="dark:text-gray-600 text-gray-400 shrink-0">${ts()}</span>`;
-  const colors = {ok:'text-green-500 dark:text-green-400', anomaly:'text-amber-500 dark:text-amber-400', error:'text-red-500 dark:text-red-400', info:'text-cyan-500 dark:text-cyan-400'};
+  const colors = {ok:'text-green-700 dark:text-green-400', anomaly:'text-amber-500 dark:text-amber-400', error:'text-red-500 dark:text-red-400', info:'text-cyan-500 dark:text-cyan-400'};
   row.innerHTML = `${timeSpan}<span class="${colors[type]||'dark:text-gray-400 text-gray-500'}">${text}</span>`;
   feed.prepend(row);
   while (feed.children.length > 100) feed.lastChild.remove();
@@ -280,7 +280,7 @@ function setHealthDot(svc, ok) {
   const label = row.querySelector('[data-status]');
   dot.className = `w-2.5 h-2.5 rounded-full ${ok === true ? 'dot-ok' : ok === false ? 'dot-err' : 'dot-unknown'}`;
   label.textContent = ok === true ? 'OK' : ok === false ? 'DEGRADED' : '--';
-  label.className = `ml-auto text-xs ${ok === true ? 'text-green-500' : ok === false ? 'text-red-500 dark:text-red-400' : 'dark:text-gray-600 text-gray-400'}`;
+  label.className = `ml-auto text-xs ${ok === true ? 'text-green-700 dark:text-green-400' : ok === false ? 'text-red-500 dark:text-red-400' : 'dark:text-gray-600 text-gray-400'}`;
 }
 
 async function fetchJSON(path) {
@@ -354,9 +354,9 @@ async function pollHealth() {
   } else {
     banner.classList.add('hidden');
     $('#m-pipeline').textContent = 'HEALTHY';
-    $('#m-pipeline').className = 'text-2xl font-bold text-green-500 dark:text-green-400';
+    $('#m-pipeline').className = 'text-2xl font-bold text-green-700 dark:text-green-400';
     $('#header-status').textContent = 'LIVE';
-    $('#header-status').className = 'text-green-500 dark:text-green-400 font-medium';
+    $('#header-status').className = 'text-green-700 dark:text-green-400 font-medium';
     $('#live-dot').className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
   }
 
@@ -390,7 +390,7 @@ async function pollAnomalies() {
   if (d.count > 0) {
     $('#m-anomalies').className = 'text-2xl font-bold text-amber-500 dark:text-amber-400';
   } else {
-    $('#m-anomalies').className = 'text-2xl font-bold text-green-500 dark:text-green-400';
+    $('#m-anomalies').className = 'text-2xl font-bold text-green-700 dark:text-green-400';
   }
   for (const a of (d.anomalies || [])) {
     if (!prevAnomalyKeys.has(a.key)) {
@@ -406,7 +406,7 @@ async function pollLambda() {
   if (d && d.state) {
     const ok = d.state === 'Active';
     $('#m-lambda').textContent = d.state;
-    $('#m-lambda').className = `text-2xl font-bold ${ok ? 'text-green-500 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`;
+    $('#m-lambda').className = `text-2xl font-bold ${ok ? 'text-green-700 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`;
   }
 }
 
