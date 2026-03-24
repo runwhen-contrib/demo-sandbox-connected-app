@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: connected-vehicle
+  labels:
+    app.kubernetes.io/part-of: connected-vehicle
+    purpose: demo

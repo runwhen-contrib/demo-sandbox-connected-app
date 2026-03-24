@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Base resources
+  - base/namespace.yaml
+  - base/service-account.yaml
+  - base/configmap.yaml
+  # Deployments + Services
+  - deployments/vehicle-api.yaml
+  - deployments/telemetry-ingest.yaml
+  - deployments/trip-service.yaml
+  - deployments/notification-service.yaml
+  - deployments/dashboard.yaml
+  # Network Policies
+  - network-policies/default-deny.yaml
+  - network-policies/vehicle-api.yaml
+  - network-policies/telemetry-ingest.yaml
+  - network-policies/trip-service.yaml
+  - network-policies/dashboard.yaml
+  - network-policies/notification-service.yaml

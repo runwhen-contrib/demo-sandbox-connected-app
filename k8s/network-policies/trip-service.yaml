@@ -1,0 +1,69 @@
+# =============================================================================
+# trip-service NetworkPolicies
+#
+# DEMO SCENARIO: "DNS / Service Discovery Failure"
+#   The egress policy has a misconfigured DNS rule that targets the wrong
+#   namespace (connected-vehicle instead of kube-system). CoreDNS runs in
+#   kube-system, so trip-service cannot resolve any hostnames — Lambda
+#   invocations fail with DNS resolution errors.
+#
+#   To fix: change the namespaceSelector from
+#           kubernetes.io/metadata.name: connected-vehicle
+#       to: kubernetes.io/metadata.name: kube-system
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: trip-service-ingress
+  namespace: connected-vehicle
+spec:
+  podSelector:
+    matchLabels:
+      app: trip-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: vehicle-api
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: trip-service-egress
+  namespace: connected-vehicle
+  labels:
+    demo-scenario: dns-failure
+spec:
+  podSelector:
+    matchLabels:
+      app: trip-service
+  policyTypes:
+    - Egress
+  egress:
+    # BUG: targets connected-vehicle namespace instead of kube-system
+    # CoreDNS pods live in kube-system, so this rule matches nothing
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: connected-vehicle
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 443
