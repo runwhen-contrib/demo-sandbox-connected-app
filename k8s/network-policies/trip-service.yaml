@@ -67,3 +67,10 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+    # EKS Pod Identity Agent (link-local credential endpoint)
+    - to:
+        - ipBlock:
+            cidr: 169.254.170.23/32
+      ports:
+        - protocol: TCP
+          port: 80
