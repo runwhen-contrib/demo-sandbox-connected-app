@@ -20,7 +20,7 @@ spec:
       serviceAccountName: connected-vehicle-sa
       containers:
         - name: trip-service
-          image: 526247032735.dkr.ecr.us-west-2.amazonaws.com/connected-vehicle-demo:sha-98fbfd9
+          image: 526247032735.dkr.ecr.us-west-2.amazonaws.com/connected-vehicle-demo:sha-a5e8122
           ports:
             - containerPort: 8000
               name: http
