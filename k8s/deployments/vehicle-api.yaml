@@ -7,7 +7,7 @@ metadata:
     app: vehicle-api
     tier: gateway
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: vehicle-api
@@ -36,26 +36,27 @@ spec:
               value: "http://trip-service.connected-vehicle.svc:80"
           resources:
             requests:
-              cpu: 200m
-              memory: 256Mi
-            limits:
               cpu: 500m
               memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
           livenessProbe:
             httpGet:
               path: /health
               port: 8000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30
             periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 3
+            timeoutSeconds: 10
+            failureThreshold: 5
           readinessProbe:
             httpGet:
               path: /ready
               port: 8000
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15
             periodSeconds: 10
-            timeoutSeconds: 3
+            timeoutSeconds: 5
+            failureThreshold: 5
 ---
 apiVersion: v1
 kind: Service

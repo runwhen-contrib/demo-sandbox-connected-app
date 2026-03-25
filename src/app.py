@@ -43,9 +43,23 @@ logger = logging.getLogger(SERVICE_NAME)
 
 app = FastAPI(title=f"Connected Vehicle — {SERVICE_NAME}")
 
-s3 = boto3.client("s3", region_name=AWS_REGION)
-lambda_client = boto3.client("lambda", region_name=AWS_REGION)
+_s3 = None
+_lambda_client = None
 http_client = httpx.AsyncClient(timeout=10.0)
+
+
+def get_s3():
+    global _s3
+    if _s3 is None:
+        _s3 = boto3.client("s3", region_name=AWS_REGION)
+    return _s3
+
+
+def get_lambda():
+    global _lambda_client
+    if _lambda_client is None:
+        _lambda_client = boto3.client("lambda", region_name=AWS_REGION)
+    return _lambda_client
 
 REQUIRED_FIELDS = {"vin", "timestamp", "location", "speed_mph", "engine_temp_f", "fuel_pct"}
 
@@ -76,22 +90,24 @@ def root():
 
 
 @app.get("/health")
-def health():
+async def health():
     return {"status": "ok", "service": SERVICE_NAME}
 
 
 @app.get("/ready")
-def ready():
+async def ready():
     checks = {}
+    if SERVICE_NAME in ("vehicle-api", "dashboard"):
+        checks["self"] = "ok"
+        return {"status": "ready", "service": SERVICE_NAME, "checks": checks}
     try:
+        loop = asyncio.get_event_loop()
         if SERVICE_NAME in ("telemetry-ingest", "notification-service"):
-            s3.head_bucket(Bucket=S3_BUCKET)
+            await loop.run_in_executor(None, lambda: get_s3().head_bucket(Bucket=S3_BUCKET))
             checks["s3"] = "ok"
         if SERVICE_NAME in ("trip-service", "notification-service"):
-            lambda_client.get_function(FunctionName=LAMBDA_FUNCTION)
+            await loop.run_in_executor(None, lambda: get_lambda().get_function(FunctionName=LAMBDA_FUNCTION))
             checks["lambda"] = "ok"
-        if SERVICE_NAME == "vehicle-api":
-            checks["self"] = "ok"
     except ClientError as exc:
         code = exc.response["Error"]["Code"]
         msg = exc.response["Error"]["Message"]
@@ -172,7 +188,7 @@ async def pipeline_status():
     try:
         ts = datetime.now(timezone.utc)
         prefix = f"telemetry/{ts:%Y/%m/%d}/"
-        resp = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix, MaxKeys=1000)
+        resp = get_s3().list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix, MaxKeys=1000)
         count = resp.get("KeyCount", 0)
         return {"date": f"{ts:%Y-%m-%d}", "telemetry_stored": count, "bucket": S3_BUCKET}
     except ClientError as exc:
@@ -196,7 +212,7 @@ async def ingest_telemetry(request: Request):
 
     logger.info("Writing telemetry to s3://%s/%s (%d bytes)", S3_BUCKET, key, len(body))
     try:
-        s3.put_object(Bucket=S3_BUCKET, Key=key, Body=body, ContentType="application/json")
+        get_s3().put_object(Bucket=S3_BUCKET, Key=key, Body=body, ContentType="application/json")
         logger.info("Stored s3://%s/%s", S3_BUCKET, key)
         return {"status": "stored", "bucket": S3_BUCKET, "key": key}
     except ClientError as exc:
@@ -220,7 +236,7 @@ async def process_telemetry(request: Request):
     logger.info("Invoking Lambda %s for VIN=%s", LAMBDA_FUNCTION, data.get("vin"))
 
     try:
-        resp = lambda_client.invoke(
+        resp = get_lambda().invoke(
             FunctionName=LAMBDA_FUNCTION,
             InvocationType="RequestResponse",
             Payload=body,
@@ -252,7 +268,7 @@ def list_recent_telemetry():
     try:
         ts = datetime.now(timezone.utc)
         prefix = f"telemetry/{ts:%Y/%m/%d}/"
-        resp = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix, MaxKeys=20)
+        resp = get_s3().list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix, MaxKeys=20)
         objects = [{"key": o["Key"], "size": o["Size"], "modified": o["LastModified"].isoformat()} for o in resp.get("Contents", [])]
         return {"bucket": S3_BUCKET, "prefix": prefix, "count": len(objects), "objects": objects}
     except ClientError as exc:
@@ -268,10 +284,10 @@ def list_recent_anomalies():
     try:
         ts = datetime.now(timezone.utc)
         prefix = f"processed/{ts:%Y/%m/%d}/"
-        resp = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix, MaxKeys=50)
+        resp = get_s3().list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix, MaxKeys=50)
         anomaly_objects = []
         for obj in resp.get("Contents", []):
-            body = s3.get_object(Bucket=S3_BUCKET, Key=obj["Key"])["Body"].read()
+            body = get_s3().get_object(Bucket=S3_BUCKET, Key=obj["Key"])["Body"].read()
             data = json.loads(body)
             if data.get("anomalies_found", 0) > 0:
                 anomaly_objects.append({"key": obj["Key"], "anomalies": data.get("anomalies", []), "vin": data.get("vin")})
@@ -286,7 +302,7 @@ def lambda_health():
     if SERVICE_NAME != "notification-service":
         raise HTTPException(404)
     try:
-        resp = lambda_client.get_function(FunctionName=LAMBDA_FUNCTION)
+        resp = get_lambda().get_function(FunctionName=LAMBDA_FUNCTION)
         cfg = resp["Configuration"]
         return {"function": LAMBDA_FUNCTION, "state": cfg["State"], "runtime": cfg.get("Runtime"), "last_modified": cfg["LastModified"]}
     except ClientError as exc:
