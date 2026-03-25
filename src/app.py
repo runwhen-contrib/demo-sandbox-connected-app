@@ -188,7 +188,9 @@ async def pipeline_status():
     try:
         ts = datetime.now(timezone.utc)
         prefix = f"telemetry/{ts:%Y/%m/%d}/"
-        resp = get_s3().list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix, MaxKeys=1000)
+        resp = await asyncio.to_thread(
+            lambda: get_s3().list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix, MaxKeys=1000)
+        )
         count = resp.get("KeyCount", 0)
         return {"date": f"{ts:%Y-%m-%d}", "telemetry_stored": count, "bucket": S3_BUCKET}
     except ClientError as exc:
@@ -212,7 +214,9 @@ async def ingest_telemetry(request: Request):
 
     logger.info("Writing telemetry to s3://%s/%s (%d bytes)", S3_BUCKET, key, len(body))
     try:
-        get_s3().put_object(Bucket=S3_BUCKET, Key=key, Body=body, ContentType="application/json")
+        await asyncio.to_thread(
+            lambda: get_s3().put_object(Bucket=S3_BUCKET, Key=key, Body=body, ContentType="application/json")
+        )
         logger.info("Stored s3://%s/%s", S3_BUCKET, key)
         return {"status": "stored", "bucket": S3_BUCKET, "key": key}
     except ClientError as exc:
@@ -236,15 +240,17 @@ async def process_telemetry(request: Request):
     logger.info("Invoking Lambda %s for VIN=%s", LAMBDA_FUNCTION, data.get("vin"))
 
     try:
-        resp = get_lambda().invoke(
-            FunctionName=LAMBDA_FUNCTION,
-            InvocationType="RequestResponse",
-            Payload=body,
-        )
-        status = resp["StatusCode"]
-        payload = json.loads(resp["Payload"].read())
+        def _invoke_lambda():
+            r = get_lambda().invoke(
+                FunctionName=LAMBDA_FUNCTION,
+                InvocationType="RequestResponse",
+                Payload=body,
+            )
+            return r["StatusCode"], json.loads(r["Payload"].read()), r.get("FunctionError")
 
-        if "FunctionError" in resp:
+        status, payload, func_err = await asyncio.to_thread(_invoke_lambda)
+
+        if func_err:
             logger.error("Lambda %s FunctionError: %s", LAMBDA_FUNCTION, payload)
             return JSONResponse(status_code=502, content={"error": "Lambda execution error", "detail": payload})
 
