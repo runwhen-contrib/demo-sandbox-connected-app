@@ -8,7 +8,7 @@
 #   invocations fail with DNS resolution errors.
 #
 #   To fix: change the namespaceSelector from
-#           kubernetes.io/metadata.name: connected-vehicle
+#           kubernetes.io/metadata.name: kube-system
 #       to: kubernetes.io/metadata.name: kube-system
 # =============================================================================
 apiVersion: networking.k8s.io/v1
@@ -50,7 +50,7 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: connected-vehicle
+              kubernetes.io/metadata.name: kube-system
           podSelector:
             matchLabels:
               k8s-app: kube-dns
