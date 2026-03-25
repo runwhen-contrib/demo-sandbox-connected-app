@@ -1,0 +1,42 @@
+name: "Auto-Remediation: Fix trip-service DNS"
+
+on:
+  schedule:
+    - cron: "0 3 * * *"   # 10:00 PM EST / 03:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  fix-dns-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fix trip-service NetworkPolicy DNS rule
+        run: |
+          FILE="k8s/network-policies/trip-service.yaml"
+          if grep -q 'kubernetes.io/metadata.name: connected-vehicle' "$FILE"; then
+            sed -i 's/kubernetes.io\/metadata.name: connected-vehicle/kubernetes.io\/metadata.name: kube-system/' "$FILE"
+            echo "CHANGED=true" >> $GITHUB_ENV
+            echo "Fixed: DNS egress now targets kube-system (where CoreDNS runs)"
+          else
+            echo "CHANGED=false" >> $GITHUB_ENV
+            echo "Already fixed — no changes needed"
+          fi
+
+      - name: Commit and push fix
+        if: env.CHANGED == 'true'
+        run: |
+          git config user.name "sre-bot"
+          git config user.email "sre-bot@runwhen.com"
+          git add k8s/network-policies/trip-service.yaml
+          git commit -m "fix(netpol): correct trip-service DNS egress to target kube-system
+
+          The trip-service egress NetworkPolicy was misconfigured to allow DNS
+          traffic to the connected-vehicle namespace instead of kube-system where
+          CoreDNS runs. This caused DNS resolution failures for all outbound
+          requests from trip-service, including Lambda invocations.
+
+          Automated remediation by SRE bot."
+          git push

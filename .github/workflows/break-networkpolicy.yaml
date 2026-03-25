@@ -1,0 +1,41 @@
+name: "Simulated Config Change: Revert trip-service DNS"
+
+on:
+  schedule:
+    - cron: "0 5 * * *"   # 12:00 AM EST / 05:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  revert-dns-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply misconfigured NetworkPolicy
+        run: |
+          FILE="k8s/network-policies/trip-service.yaml"
+          if grep -q 'kubernetes.io/metadata.name: kube-system' "$FILE"; then
+            sed -i 's/kubernetes.io\/metadata.name: kube-system/kubernetes.io\/metadata.name: connected-vehicle/' "$FILE"
+            echo "CHANGED=true" >> $GITHUB_ENV
+            echo "Reverted: DNS egress now targets connected-vehicle (broken state)"
+          else
+            echo "CHANGED=false" >> $GITHUB_ENV
+            echo "Already in broken state — no changes needed"
+          fi
+
+      - name: Commit and push change
+        if: env.CHANGED == 'true'
+        run: |
+          git config user.name "Kyle Mitchell"
+          git config user.email "kyle.mitchell@acme-motors.com"
+          git add k8s/network-policies/trip-service.yaml
+          git commit -m "chore(netpol): tighten trip-service egress to app namespace
+
+          Updated the trip-service DNS egress policy to restrict DNS resolution
+          to the application namespace for improved security isolation. This
+          ensures trip-service only communicates within its own namespace boundary.
+
+          Ticket: ACME-4821"
+          git push
