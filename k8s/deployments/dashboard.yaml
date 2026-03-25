@@ -63,6 +63,7 @@ metadata:
     app: dashboard
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    external-dns.alpha.kubernetes.io/hostname: dashboard.aws.sandbox.runwhen.com
 spec:
   type: LoadBalancer
   selector:
